@@ -112,126 +112,131 @@ public class GCMIntentService extends GCMBaseIntentService {
 
 		Boolean appIsInForeground = TiApplication.isCurrentActivityInForeground();
 
-		if (appIsInForeground) {
-			Log.d(LCAT, "Message received but the app is on foreground, so you have to handle this in the app.");
-		} else if (data.has("alert") == false) {
-			Log.d(LCAT, "Message received but alert is empty.");
-		} else {
+		String pkg = instance.getApplicationContext().getPackageName();
 
-			String pkg = instance.getApplicationContext().getPackageName();
+        Intent launcherIntent;
+        PendingIntent contentIntent;
 
-			Intent launcherIntent = instance.getApplicationContext().getPackageManager().getLaunchIntentForPackage(pkg);
-			launcherIntent.setFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-			launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-			launcherIntent.putExtra("notification", dataAsString);
+        if (TiApplication.getInstance().getCurrentActivity() == null) {
+            launcherIntent = instance.getApplicationContext().getPackageManager().getLaunchIntentForPackage(pkg);
+            launcherIntent.setFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+            launcherIntent.putExtra("notification", dataAsString);
+            launcherIntent.putExtra("inBackground", true);
+            contentIntent = PendingIntent.getActivity(this, 0, launcherIntent, PendingIntent.FLAG_ONE_SHOT);
+        } else {
+			launcherIntent = new Intent("com.drund.push");
+            launcherIntent.putExtra("notification", dataAsString);
+            launcherIntent.putExtra("inBackground", !appIsInForeground);
+            contentIntent = PendingIntent.getBroadcast(this, 0, launcherIntent, PendingIntent.FLAG_ONE_SHOT);
 
-			PendingIntent contentIntent = PendingIntent.getActivity(this, 0, launcherIntent, PendingIntent.FLAG_ONE_SHOT);
+            if (appIsInForeground) {
+                if (CaffeinaGCMModule.getInstance() != null) {
+                    CaffeinaGCMModule.getInstance().sendMessage(dataAsString, false);
+                }
+            }
+        }
 
-			/////////////////////////////////
-			// Start building notification //
-			/////////////////////////////////
+		/////////////////////////////////
+		// Start building notification //
+		/////////////////////////////////
 
-			NotificationCompat.Builder builder = new NotificationCompat.Builder(context);
-			int builder_defaults = 0;
-			builder.setContentIntent(contentIntent);
-			builder.setAutoCancel(true);
+		NotificationCompat.Builder builder = new NotificationCompat.Builder(context);
+		int builder_defaults = 0;
+		builder.setContentIntent(contentIntent);
+		builder.setAutoCancel(true);
 
-			///////////
-			// Alert //
-			///////////
+		///////////
+		// Alert //
+		///////////
 
-			String alert = data.getAsJsonPrimitive("alert").getAsString();
-			builder.setContentText(alert);
-			builder.setTicker(alert);
+		String alert = data.getAsJsonPrimitive("alert").getAsString();
+		builder.setContentText(alert);
+		builder.setTicker(alert);
 
-			///////////
-			// Icons //
-			///////////
+		///////////
+		// Icons //
+		///////////
 
-			int smallIcon = getResource("drawable", "notificationicon");
-			builder.setSmallIcon(smallIcon);
+		int smallIcon = getResource("drawable", "notificationicon");
+		builder.setSmallIcon(smallIcon);
 
-			////////////////
-			// Large icon //
-			////////////////
+		////////////////
+		// Large icon //
+		////////////////
 
-			if (data.has("largeicon")) {
-				try {
-					builder.setLargeIcon( getBitmapFromURL(data.getAsJsonPrimitive("largeicon").getAsString()) );
-				} catch (Exception ex) {
-					Log.e(LCAT, ex.getMessage());
-				}
-			}
-
-			//////////////
-			// Priority //
-			//////////////
-
-			int priority = 0;
+		if (data.has("largeicon")) {
 			try {
-				if (data.has("priority")) {
-					priority = data.getAsJsonPrimitive("priority").getAsInt();
-				}
+				builder.setLargeIcon( getBitmapFromURL(data.getAsJsonPrimitive("largeicon").getAsString()) );
 			} catch (Exception ex) {
 				Log.e(LCAT, ex.getMessage());
 			}
-
-			builder.setPriority(priority);
-
-			///////////
-			// Title //
-			///////////
-
-			builder.setContentTitle( data.has("title") ? data.getAsJsonPrimitive("title").getAsString() : instance.getAppInfo().getName() );
-
-			///////////
-			// Badge //
-			///////////
-
-			if (badge != 0) {
-				builder.setNumber(badge);
-			}
-
-			///////////
-			// Sound //
-			///////////
-
-			if (data.has("sound")) {
-				if ("default".equals(data.getAsJsonPrimitive("sound").getAsString())) {
-					builder_defaults |= Notification.DEFAULT_SOUND;
-				} else {
-					builder.setSound( Uri.parse("android.resource://" + pkg + "/" + getResource("raw", data.getAsJsonPrimitive("sound").getAsString())) );
-				}
-			}
-
-			///////////////
-			// Vibration //
-			///////////////
-
-			try {
-				if (data.has("vibrate")) {
-					JsonPrimitive vibrate = data.getAsJsonPrimitive("vibrate");
-					if ( (vibrate.isBoolean() && vibrate.getAsBoolean() == true) || (vibrate.getAsInt() == 1) ) {
-						builder_defaults |= Notification.DEFAULT_VIBRATE;
-					}
-				}
-			} catch(Exception ex) {
-				Log.e(LCAT, ex.getMessage());
-			}
-
-			///////////
-			// Build //
-			///////////
-
-			builder_defaults |= Notification.DEFAULT_LIGHTS;
-			builder.setDefaults(builder_defaults);
-
-			((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(1, builder.build());
 		}
 
-		if (CaffeinaGCMModule.getInstance() != null) {
-			CaffeinaGCMModule.getInstance().sendMessage(dataAsString, !appIsInForeground);
+		//////////////
+		// Priority //
+		//////////////
+
+		int priority = 0;
+		try {
+			if (data.has("priority")) {
+				priority = data.getAsJsonPrimitive("priority").getAsInt();
+			}
+		} catch (Exception ex) {
+			Log.e(LCAT, ex.getMessage());
 		}
+
+		builder.setPriority(priority);
+
+		///////////
+		// Title //
+		///////////
+
+		builder.setContentTitle( data.has("title") ? data.getAsJsonPrimitive("title").getAsString() : instance.getAppInfo().getName() );
+
+		///////////
+		// Badge //
+		///////////
+
+		if (badge != 0) {
+			builder.setNumber(badge);
+		}
+
+		///////////
+		// Sound //
+		///////////
+
+		if (data.has("sound")) {
+			if ("default".equals(data.getAsJsonPrimitive("sound").getAsString())) {
+				builder_defaults |= Notification.DEFAULT_SOUND;
+			} else {
+				builder.setSound( Uri.parse("android.resource://" + pkg + "/" + getResource("raw", data.getAsJsonPrimitive("sound").getAsString())) );
+			}
+		}
+
+		///////////////
+		// Vibration //
+		///////////////
+
+		try {
+			if (data.has("vibrate")) {
+				JsonPrimitive vibrate = data.getAsJsonPrimitive("vibrate");
+				if ( (vibrate.isBoolean() && vibrate.getAsBoolean() == true) || (vibrate.getAsInt() == 1) ) {
+					builder_defaults |= Notification.DEFAULT_VIBRATE;
+				}
+			}
+		} catch(Exception ex) {
+			Log.e(LCAT, ex.getMessage());
+		}
+
+		///////////
+		// Build //
+		///////////
+
+		builder_defaults |= Notification.DEFAULT_LIGHTS;
+		builder.setDefaults(builder_defaults);
+
+		((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(1, builder.build());
 	}
 
 	@Override
