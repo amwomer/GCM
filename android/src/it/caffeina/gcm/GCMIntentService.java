@@ -114,6 +114,8 @@ public class GCMIntentService extends GCMBaseIntentService {
 
 		String pkg = instance.getApplicationContext().getPackageName();
 
+        String appName = instance.getAppProperties().getString("id", "com.drund.mobile");
+
         Intent launcherIntent;
         PendingIntent contentIntent;
 
@@ -125,7 +127,7 @@ public class GCMIntentService extends GCMBaseIntentService {
             launcherIntent.putExtra("inBackground", true);
             contentIntent = PendingIntent.getActivity(this, 0, launcherIntent, PendingIntent.FLAG_ONE_SHOT);
         } else {
-			launcherIntent = new Intent("com.drund.push");
+			launcherIntent = new Intent(pkg + ".push.RECEIVE");
             launcherIntent.putExtra("notification", dataAsString);
             launcherIntent.putExtra("inBackground", !appIsInForeground);
             contentIntent = PendingIntent.getBroadcast(this, 0, launcherIntent, PendingIntent.FLAG_ONE_SHOT);
