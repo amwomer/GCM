@@ -27,10 +27,12 @@ import java.net.URL;
 import java.net.HttpURLConnection;
 import java.io.InputStream;
 import java.io.BufferedInputStream;
+import java.util.Random;
 
 public class GCMIntentService extends GCMBaseIntentService {
 
     private static final String LCAT = "it.caffeina.gcm.GCMIntentService";
+    private Random randomGenerator = new Random();
 
     public GCMIntentService() {
         super("");
@@ -116,26 +118,17 @@ public class GCMIntentService extends GCMBaseIntentService {
 
         String appName = instance.getAppProperties().getString("id", "com.drund.mobile");
 
-        Intent launcherIntent;
+        Intent broadcastIntent;
         PendingIntent contentIntent;
 
-        if (TiApplication.getInstance().getCurrentActivity() == null) {
-            launcherIntent = instance.getApplicationContext().getPackageManager().getLaunchIntentForPackage(pkg);
-            launcherIntent.setFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-            launcherIntent.putExtra("notification", dataAsString);
-            launcherIntent.putExtra("inBackground", true);
-            contentIntent = PendingIntent.getActivity(this, 0, launcherIntent, PendingIntent.FLAG_ONE_SHOT);
-        } else {
-            launcherIntent = new Intent(pkg + ".push.RECEIVE");
-            launcherIntent.putExtra("notification", dataAsString);
-            launcherIntent.putExtra("inBackground", !appIsInForeground);
-            contentIntent = PendingIntent.getBroadcast(this, 0, launcherIntent, PendingIntent.FLAG_ONE_SHOT);
+        broadcastIntent = new Intent(pkg + ".push.RECEIVE");
+        broadcastIntent.putExtra("notification", dataAsString);
+        broadcastIntent.putExtra("inBackground", !appIsInForeground);
+        contentIntent = PendingIntent.getBroadcast(this, randomGenerator.nextInt(), broadcastIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-            if (appIsInForeground) {
-                if (CaffeinaGCMModule.getInstance() != null) {
-                    CaffeinaGCMModule.getInstance().sendMessage(dataAsString, false);
-                }
+        if (appIsInForeground) {
+            if (CaffeinaGCMModule.getInstance() != null) {
+                CaffeinaGCMModule.getInstance().sendMessage(dataAsString, false);
             }
         }
 
@@ -238,7 +231,7 @@ public class GCMIntentService extends GCMBaseIntentService {
         builder_defaults |= Notification.DEFAULT_LIGHTS;
         builder.setDefaults(builder_defaults);
 
-        ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(1, builder.build());
+        ((NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE)).notify(randomGenerator.nextInt(), builder.build());
     }
 
     @Override
